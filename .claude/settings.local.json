@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(python test_client.py:*)",
+      "WebFetch(domain:docs.sunoapi.org)",
+      "Bash(python test_comprehensive.py:*)",
+      "mcp__suno__get_credits",
+      "mcp__suno__generate_music",
+      "Bash(git init:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "suno"
+  ]
+}

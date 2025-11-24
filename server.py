@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+"""Suno MCP Server - AI Music Generation via Model Context Protocol."""
+
+import asyncio
+import os
+from typing import Any
+from dotenv import load_dotenv
+
+from mcp.server.models import InitializationOptions
+from mcp.server import NotificationOptions, Server
+from mcp.server.stdio import stdio_server
+from mcp.types import (
+    Tool,
+    TextContent,
+    ImageContent,
+    EmbeddedResource,
+)
+
+from suno_client import SunoClient, SunoAPIError
+
+# Load environment variables
+load_dotenv()
+
+# Initialize server
+server = Server("suno-mcp-server")
+
+# Global client instance
+suno_client: SunoClient | None = None
+
+
+@server.list_tools()
+async def handle_list_tools() -> list[Tool]:
+    """List available Suno API tools."""
+    return [
+        Tool(
+            name="generate_music",
+            description="Generate AI music from a text prompt. Creates high-quality music in various styles and genres. Supports both simple and custom modes with advanced controls. Returns track IDs that can be used to check status and retrieve the generated audio.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "Text description/lyrics for the music. In Custom Mode with make_instrumental=false, this is used as exact lyrics (max 3000-5000 chars). In Non-custom Mode, used as core idea for auto-generated lyrics (max 500 chars). Not required if custom_mode=true and make_instrumental=true."
+                    },
+                    "make_instrumental": {
+                        "type": "boolean",
+                        "description": "If true, generate instrumental only without vocals",
+                        "default": False
+                    },
+                    "model_version": {
+                        "type": "string",
+                        "description": "AI model version to use. V5 offers superior musical expression and faster generation.",
+                        "enum": ["v3.5", "v4", "v4.5", "v4.5plus", "v5"],
+                        "default": "v3.5"
+                    },
+                    "custom_mode": {
+                        "type": "boolean",
+                        "description": "Enable custom mode for advanced control. When true, requires style and title parameters. Allows you to specify exact lyrics, music style, and other advanced settings.",
+                        "default": False
+                    },
+                    "style": {
+                        "type": "string",
+                        "description": "Music style/genre (required in Custom Mode, e.g., 'orchestral epic, cinematic, powerful strings'). Max 200-1000 chars depending on model."
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Song title (required in Custom Mode). Max 80 characters."
+                    },
+                    "wait_audio": {
+                        "type": "boolean",
+                        "description": "If true, wait for audio generation to complete before returning",
+                        "default": True
+                    },
+                    "callback_url": {
+                        "type": "string",
+                        "description": "Webhook URL for completion notification (e.g., 'https://example.com/webhook')"
+                    },
+                    "persona_id": {
+                        "type": "string",
+                        "description": "Persona identifier for stylistic influence (Custom Mode only)"
+                    },
+                    "negative_tags": {
+                        "type": "string",
+                        "description": "Styles or traits to exclude from generation (e.g., 'aggressive, heavy metal')"
+                    },
+                    "vocal_gender": {
+                        "type": "string",
+                        "description": "Preferred vocal gender",
+                        "enum": ["m", "f"]
+                    },
+                    "style_weight": {
+                        "type": "number",
+                        "description": "Weight of style guidance (0.00-1.00). Higher values adhere more strictly to the specified style.",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "weirdness_constraint": {
+                        "type": "number",
+                        "description": "Creative deviation tolerance (0.00-1.00). Higher values allow more experimental/unusual results.",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "audio_weight": {
+                        "type": "number",
+                        "description": "Input audio influence weighting (0.00-1.00)",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    }
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="get_task_status",
+            description="Get the status of a music generation task using the taskId returned from generate_music. This shows generation progress and track information once complete.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The task ID returned from generate_music"
+                    }
+                },
+                "required": ["task_id"]
+            }
+        ),
+        Tool(
+            name="get_music_info",
+            description="Get detailed information about generated music tracks using track IDs (not task IDs). Use this for tracks you already have the specific track IDs for.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "track_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of track IDs to retrieve information for"
+                    }
+                },
+                "required": ["track_ids"]
+            }
+        ),
+        Tool(
+            name="get_credits",
+            description="Check your Suno API account credit balance and usage statistics.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        )
+    ]
+
+
+@server.call_tool()
+async def handle_call_tool(name: str, arguments: dict | None) -> list[TextContent | ImageContent | EmbeddedResource]:
+    """Handle tool execution requests."""
+    if not suno_client:
+        raise RuntimeError("Suno client not initialized")
+
+    try:
+        if name == "generate_music":
+            # Extract arguments
+            prompt = arguments.get("prompt")
+            make_instrumental = arguments.get("make_instrumental", False)
+            model_version = arguments.get("model_version", "v3.5")
+
+            # Convert model version format from "v3.5" to "V3_5" for API
+            model_version_map = {
+                "v3.5": "V3_5",
+                "v4": "V4",
+                "v4.5": "V4_5",
+                "v4.5plus": "V4_5PLUS",
+                "v5": "V5"
+            }
+            api_model_version = model_version_map.get(model_version, "V3_5")
+
+            custom_mode = arguments.get("custom_mode", False)
+            style = arguments.get("style")
+            title = arguments.get("title")
+            wait_audio = arguments.get("wait_audio", True)
+            callback_url = arguments.get("callback_url")
+            persona_id = arguments.get("persona_id")
+            negative_tags = arguments.get("negative_tags")
+            vocal_gender = arguments.get("vocal_gender")
+            style_weight = arguments.get("style_weight")
+            weirdness_constraint = arguments.get("weirdness_constraint")
+            audio_weight = arguments.get("audio_weight")
+
+            # Generate music
+            result = await suno_client.generate_music(
+                prompt=prompt,
+                make_instrumental=make_instrumental,
+                model_version=api_model_version,
+                wait_audio=wait_audio,
+                custom_mode=custom_mode,
+                style=style,
+                title=title,
+                callback_url=callback_url,
+                persona_id=persona_id,
+                negative_tags=negative_tags,
+                vocal_gender=vocal_gender,
+                style_weight=style_weight,
+                weirdness_constraint=weirdness_constraint,
+                audio_weight=audio_weight
+            )
+
+            # Format response
+            response_text = f"Music generation {'completed' if wait_audio else 'started'}!\n\n"
+
+            if "data" in result and result["data"] is not None:
+                data = result["data"]
+
+                # Check if data is a dict with taskId (async generation)
+                if isinstance(data, dict) and "taskId" in data:
+                    response_text += f"Task ID: {data['taskId']}\n"
+                    response_text += "\nNote: Generation is processing asynchronously. You can check status later using the task ID.\n"
+                # Check if data is a list of tracks (completed generation)
+                elif isinstance(data, list):
+                    tracks = data
+                    response_text += f"Generated {len(tracks)} track(s):\n\n"
+
+                    for i, track in enumerate(tracks, 1):
+                        response_text += f"Track {i}:\n"
+                        response_text += f"  ID: {track.get('id', 'N/A')}\n"
+                        response_text += f"  Title: {track.get('title', 'N/A')}\n"
+                        response_text += f"  Status: {track.get('status', 'N/A')}\n"
+
+                        if track.get('audio_url'):
+                            response_text += f"  Audio URL: {track['audio_url']}\n"
+                        if track.get('video_url'):
+                            response_text += f"  Video URL: {track['video_url']}\n"
+                        if track.get('duration'):
+                            response_text += f"  Duration: {track['duration']}s\n"
+
+                        response_text += "\n"
+
+                    if not wait_audio:
+                        response_text += "Note: Use get_music_info with the track IDs above to check generation status and retrieve audio URLs.\n"
+                else:
+                    response_text += f"Data: {data}\n"
+            else:
+                response_text += f"Response: {result}\n"
+
+            return [TextContent(type="text", text=response_text)]
+
+        elif name == "get_task_status":
+            # Extract task ID
+            task_id = arguments.get("task_id")
+            if not task_id:
+                raise ValueError("task_id is required")
+
+            # Get task status
+            result = await suno_client.get_task_status(task_id)
+
+            # Format response
+            response_text = "Music Generation Task Status:\n\n"
+
+            if "data" in result:
+                data = result["data"]
+
+                response_text += f"Task ID: {data.get('taskId', 'N/A')}\n"
+                response_text += f"Status: {data.get('status', 'N/A')}\n"
+                response_text += f"Operation: {data.get('operationType', 'N/A')}\n"
+                response_text += f"Model: {data.get('type', 'N/A')}\n"
+
+                # Check if response contains track data
+                response_data = data.get('response')
+                suno_data = []
+                if response_data and isinstance(response_data, dict):
+                    suno_data = response_data.get('sunoData', [])
+
+                if suno_data:
+                    response_text += f"\n{len(suno_data)} track(s) generated:\n\n"
+
+                    for i, track in enumerate(suno_data, 1):
+                        response_text += f"Track {i}:\n"
+                        response_text += f"  ID: {track.get('id', 'N/A')}\n"
+                        response_text += f"  Title: {track.get('title', 'N/A')}\n"
+                        response_text += f"  Model: {track.get('modelName', 'N/A')}\n"
+
+                        if track.get('duration'):
+                            response_text += f"  Duration: {track['duration']}s\n"
+
+                        if track.get('tags'):
+                            response_text += f"  Tags: {track['tags']}\n"
+
+                        if track.get('audioUrl'):
+                            response_text += f"  Audio URL: {track['audioUrl']}\n"
+
+                        if track.get('streamAudioUrl'):
+                            response_text += f"  Stream URL: {track['streamAudioUrl']}\n"
+
+                        if track.get('imageUrl'):
+                            response_text += f"  Image URL: {track['imageUrl']}\n"
+
+                        if track.get('createTime'):
+                            response_text += f"  Created: {track['createTime']}\n"
+
+                        response_text += "\n"
+                else:
+                    response_text += f"\nGeneration in progress. Current status: {data.get('status', 'UNKNOWN')}\n"
+            else:
+                response_text += f"Response: {result}\n"
+
+            return [TextContent(type="text", text=response_text)]
+
+        elif name == "get_music_info":
+            # Extract track IDs
+            track_ids = arguments.get("track_ids")
+            if not track_ids or not isinstance(track_ids, list):
+                raise ValueError("track_ids must be a non-empty list")
+
+            # Get music info
+            result = await suno_client.get_music_info(track_ids)
+
+            # Format response
+            response_text = "Music Track Information:\n\n"
+
+            if "data" in result:
+                tracks = result["data"]
+
+                for i, track in enumerate(tracks, 1):
+                    response_text += f"Track {i}:\n"
+                    response_text += f"  ID: {track.get('id', 'N/A')}\n"
+                    response_text += f"  Title: {track.get('title', 'N/A')}\n"
+                    response_text += f"  Status: {track.get('status', 'N/A')}\n"
+                    response_text += f"  Model: {track.get('model_name', 'N/A')}\n"
+
+                    if track.get('audio_url'):
+                        response_text += f"  Audio URL: {track['audio_url']}\n"
+                    if track.get('video_url'):
+                        response_text += f"  Video URL: {track['video_url']}\n"
+                    if track.get('image_url'):
+                        response_text += f"  Image URL: {track['image_url']}\n"
+
+                    if track.get('duration'):
+                        response_text += f"  Duration: {track['duration']}s\n"
+                    if track.get('tags'):
+                        response_text += f"  Tags: {track['tags']}\n"
+                    if track.get('prompt'):
+                        response_text += f"  Prompt: {track['prompt']}\n"
+
+                    response_text += f"  Created: {track.get('created_at', 'N/A')}\n"
+                    response_text += "\n"
+            else:
+                response_text += f"Response: {result}\n"
+
+            return [TextContent(type="text", text=response_text)]
+
+        elif name == "get_credits":
+            # Get credit info
+            result = await suno_client.get_credits()
+
+            # Format response
+            response_text = "Suno API Credits:\n\n"
+
+            if "data" in result:
+                data = result["data"]
+                # The API returns credits as a simple float value
+                if isinstance(data, (int, float)):
+                    response_text += f"Remaining Credits: {data}\n"
+                else:
+                    # Handle if the API format changes to return detailed breakdown
+                    response_text += f"Total Credits: {data.get('total_credits', 'N/A')}\n"
+                    response_text += f"Used Credits: {data.get('used_credits', 'N/A')}\n"
+                    response_text += f"Remaining Credits: {data.get('remaining_credits', 'N/A')}\n"
+            else:
+                response_text += f"Response: {result}\n"
+
+            return [TextContent(type="text", text=response_text)]
+
+        else:
+            raise ValueError(f"Unknown tool: {name}")
+
+    except SunoAPIError as e:
+        return [TextContent(type="text", text=f"Suno API Error: {str(e)}")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def main():
+    """Run the MCP server."""
+    global suno_client
+
+    # Initialize Suno client
+    try:
+        suno_client = SunoClient()
+        print(f"Suno MCP Server initialized successfully", flush=True)
+    except Exception as e:
+        print(f"Failed to initialize Suno client: {e}", flush=True)
+        return
+
+    # Run the server
+    async with stdio_server() as (read_stream, write_stream):
+        try:
+            await server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name="suno-mcp-server",
+                    server_version="1.0.0",
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
+                ),
+            )
+        finally:
+            if suno_client:
+                await suno_client.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
