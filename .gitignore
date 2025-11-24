@@ -1,5 +1,7 @@
-# Environment variables
+# Environment variables and secrets
 .env
+.mcp.json
+.claude/
 
 # Python
 __pycache__/
