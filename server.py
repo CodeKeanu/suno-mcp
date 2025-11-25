@@ -147,6 +147,38 @@ async def handle_list_tools() -> list[Tool]:
                 "properties": {},
                 "required": []
             }
+        ),
+        Tool(
+            name="convert_to_wav",
+            description="Convert a generated audio track to WAV format. Use the track ID (audioId) from a previously generated music track. Returns a task ID that can be used to check conversion status.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "audio_id": {
+                        "type": "string",
+                        "description": "Track ID (audioId) of the generated music to convert to WAV format"
+                    },
+                    "callback_url": {
+                        "type": "string",
+                        "description": "Webhook URL for conversion completion notification (e.g., 'https://example.com/webhook')"
+                    }
+                },
+                "required": ["audio_id", "callback_url"]
+            }
+        ),
+        Tool(
+            name="get_wav_conversion_status",
+            description="Get the status of a WAV conversion task using the taskId returned from convert_to_wav. Shows conversion progress and WAV download URL once complete.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The task ID returned from convert_to_wav"
+                    }
+                },
+                "required": ["task_id"]
+            }
         )
     ]
 
@@ -364,6 +396,76 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[TextConten
                     response_text += f"Total Credits: {data.get('total_credits', 'N/A')}\n"
                     response_text += f"Used Credits: {data.get('used_credits', 'N/A')}\n"
                     response_text += f"Remaining Credits: {data.get('remaining_credits', 'N/A')}\n"
+            else:
+                response_text += f"Response: {result}\n"
+
+            return [TextContent(type="text", text=response_text)]
+
+        elif name == "convert_to_wav":
+            # Extract arguments
+            audio_id = arguments.get("audio_id")
+            callback_url = arguments.get("callback_url")
+
+            if not audio_id:
+                raise ValueError("audio_id is required")
+            if not callback_url:
+                raise ValueError("callback_url is required")
+
+            # Convert to WAV
+            result = await suno_client.convert_to_wav(audio_id, callback_url)
+
+            # Format response
+            response_text = "WAV Conversion Started!\n\n"
+
+            if "data" in result and result["data"] is not None:
+                data = result["data"]
+
+                # Check if data contains taskId
+                if isinstance(data, dict) and "taskId" in data:
+                    response_text += f"Task ID: {data['taskId']}\n"
+                    response_text += f"Audio ID: {audio_id}\n"
+                    response_text += "\nNote: Conversion is processing. Use get_wav_conversion_status with the task ID to check progress and retrieve the WAV download URL.\n"
+                else:
+                    response_text += f"Data: {data}\n"
+            else:
+                response_text += f"Response: {result}\n"
+
+            return [TextContent(type="text", text=response_text)]
+
+        elif name == "get_wav_conversion_status":
+            # Extract task ID
+            task_id = arguments.get("task_id")
+            if not task_id:
+                raise ValueError("task_id is required")
+
+            # Get WAV conversion status
+            result = await suno_client.get_wav_conversion_status(task_id)
+
+            # Format response
+            response_text = "WAV Conversion Task Status:\n\n"
+
+            if "data" in result and result["data"] is not None:
+                data = result["data"]
+
+                response_text += f"Task ID: {data.get('taskId', 'N/A')}\n"
+                response_text += f"Status: {data.get('status', 'N/A')}\n"
+                response_text += f"Operation: {data.get('operationType', 'N/A')}\n"
+
+                # Check if response contains WAV data
+                response_data = data.get('response')
+                if response_data and isinstance(response_data, dict):
+                    wav_data = response_data.get('wavData')
+                    if wav_data:
+                        response_text += "\nWAV File Information:\n"
+                        response_text += f"  Audio ID: {wav_data.get('audioId', 'N/A')}\n"
+                        response_text += f"  WAV URL: {wav_data.get('wavUrl', 'N/A')}\n"
+
+                        if wav_data.get('createTime'):
+                            response_text += f"  Created: {wav_data['createTime']}\n"
+                    else:
+                        response_text += f"\nConversion in progress. Current status: {data.get('status', 'UNKNOWN')}\n"
+                else:
+                    response_text += f"\nConversion in progress. Current status: {data.get('status', 'UNKNOWN')}\n"
             else:
                 response_text += f"Response: {result}\n"
 
