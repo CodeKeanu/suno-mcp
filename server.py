@@ -150,20 +150,24 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="convert_to_wav",
-            description="Convert a generated audio track to WAV format. Use the track ID (audioId) from a previously generated music track. Returns a task ID that can be used to check conversion status.",
+            description="Convert a generated audio track to WAV format. Provide EITHER task_id OR audio_id (or both). Using audio_id is recommended for precision when a generation task has multiple tracks. Returns a conversion task ID that can be used to check conversion status.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "audio_id": {
-                        "type": "string",
-                        "description": "Track ID (audioId) of the generated music to convert to WAV format"
-                    },
                     "callback_url": {
                         "type": "string",
                         "description": "Webhook URL for conversion completion notification (e.g., 'https://example.com/webhook')"
+                    },
+                    "task_id": {
+                        "type": "string",
+                        "description": "Original generation task ID (taskId) from generate_music - converts all tracks from that generation (optional if audio_id provided)"
+                    },
+                    "audio_id": {
+                        "type": "string",
+                        "description": "Track ID (audioId) of the specific generated music track to convert - more precise, recommended (optional if task_id provided)"
                     }
                 },
-                "required": ["audio_id", "callback_url"]
+                "required": ["callback_url"]
             }
         ),
         Tool(
@@ -403,16 +407,22 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[TextConten
 
         elif name == "convert_to_wav":
             # Extract arguments
-            audio_id = arguments.get("audio_id")
             callback_url = arguments.get("callback_url")
+            task_id = arguments.get("task_id")
+            audio_id = arguments.get("audio_id")
 
-            if not audio_id:
-                raise ValueError("audio_id is required")
             if not callback_url:
                 raise ValueError("callback_url is required")
 
-            # Convert to WAV
-            result = await suno_client.convert_to_wav(audio_id, callback_url)
+            if not task_id and not audio_id:
+                raise ValueError("Either task_id or audio_id must be provided")
+
+            # Convert to WAV (pass whichever IDs were provided)
+            result = await suno_client.convert_to_wav(
+                callback_url=callback_url,
+                task_id=task_id,
+                audio_id=audio_id
+            )
 
             # Format response
             response_text = "WAV Conversion Started!\n\n"
