@@ -385,9 +385,10 @@ async def main():
     # Initialize Suno client
     try:
         suno_client = SunoClient()
-        print(f"Suno MCP Server initialized successfully", flush=True)
+        # Successfully initialized - do not print to stdout as it corrupts MCP JSON-RPC protocol
     except Exception as e:
-        print(f"Failed to initialize Suno client: {e}", flush=True)
+        # Failed to initialize - exit silently to avoid corrupting MCP protocol
+        # Error will be reported when tools are called
         return
 
     # Run the server
