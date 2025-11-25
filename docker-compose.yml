@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  suno-mcp-server:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Image name for local use
+    image: suno-mcp-server:latest
+
+    # Container name
+    container_name: suno-mcp-server
+
+    # Environment variables from .env file
+    # NEVER commit .env to version control
+    env_file:
+      - .env
+
+    # Alternative: Explicitly define environment variables
+    # Uncomment and use this instead of env_file if preferred
+    # environment:
+    #   - SUNO_API_KEY=${SUNO_API_KEY}
+    #   - SUNO_API_BASE_URL=${SUNO_API_BASE_URL:-https://api.sunoapi.org}
+
+    # Interactive mode for stdio communication
+    stdin_open: true
+    tty: false
+
+    # Restart policy (no restart for MCP servers managed by client)
+    restart: "no"
+
+    # Resource limits (optional but recommended)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Read-only root filesystem (optional, uncomment if needed)
+    # Note: May need to add tmpfs mounts for write operations
+    # read_only: true
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Add networks for multi-container setups
+# networks:
+#   suno-network:
+#     driver: bridge
