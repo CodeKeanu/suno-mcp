@@ -20,11 +20,41 @@ A Model Context Protocol (MCP) server that provides AI music generation capabili
 
 ## Prerequisites
 
-- Python 3.10 or higher
+- **Option 1 (Docker - Recommended)**: Docker and Docker Compose installed
+- **Option 2 (Native Python)**: Python 3.10 or higher
 - A Suno API key (obtain from [sunoapi.org](https://sunoapi.org))
 - Claude Code or another MCP-compatible client
 
 ## Installation
+
+### Option 1: Docker Installation (Recommended)
+
+Docker provides a portable, isolated environment for the MCP server with all dependencies pre-configured.
+
+1. Clone or navigate to this directory:
+```bash
+cd /root/suno-mcp-proj
+```
+
+2. Configure your API key:
+```bash
+cp .env.example .env
+```
+
+3. Edit `.env` and add your Suno API key:
+```
+SUNO_API_KEY=your_actual_api_key_here
+SUNO_API_BASE_URL=https://api.sunoapi.org
+```
+
+4. Build the Docker image:
+```bash
+docker-compose build
+```
+
+That's it! The Docker image is now ready to use.
+
+### Option 2: Native Python Installation
 
 1. Clone or navigate to this directory:
 ```bash
@@ -49,9 +79,49 @@ SUNO_API_BASE_URL=https://api.sunoapi.org
 
 ## Usage with Claude Code
 
-To use this MCP server with Claude Code, add it to your MCP settings configuration:
+To use this MCP server with Claude Code, add it to your MCP settings configuration.
 
-### Option 1: Using Claude Code Settings UI
+### Docker Configuration (Recommended)
+
+#### Option 1: Using Claude Code Settings UI
+
+1. Open Claude Code settings
+2. Navigate to MCP Servers section
+3. Add a new server with:
+   - **Name**: `suno`
+   - **Command**: `docker`
+   - **Arguments**: `["run", "--rm", "-i", "--env-file", "/root/suno-mcp-proj/.env", "suno-mcp-server:latest"]`
+
+#### Option 2: Manual Configuration
+
+Add to your MCP settings file (typically `~/.config/claude-code/mcp_settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "suno": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--env-file",
+        "/root/suno-mcp-proj/.env",
+        "suno-mcp-server:latest"
+      ]
+    }
+  }
+}
+```
+
+**Docker Flags Explained:**
+- `--rm`: Automatically remove container when it exits
+- `-i`: Keep stdin open for MCP stdio communication
+- `--env-file`: Load environment variables from `.env` file (keeps API key secure)
+
+### Native Python Configuration
+
+#### Option 1: Using Claude Code Settings UI
 
 1. Open Claude Code settings
 2. Navigate to MCP Servers section
@@ -63,9 +133,9 @@ To use this MCP server with Claude Code, add it to your MCP settings configurati
      - `SUNO_API_KEY`: Your API key
      - `SUNO_API_BASE_URL`: `https://api.sunoapi.org`
 
-### Option 2: Manual Configuration
+#### Option 2: Manual Configuration
 
-Add to your MCP settings file (typically `~/.config/claude-code/mcp_settings.json`):
+Add to your MCP settings file:
 
 ```json
 {
@@ -82,7 +152,7 @@ Add to your MCP settings file (typically `~/.config/claude-code/mcp_settings.jso
 }
 ```
 
-Restart Claude Code after adding the configuration.
+**Important:** Restart Claude Code after adding the configuration.
 
 ## Available Tools
 
@@ -231,12 +301,140 @@ Check my Suno API credits
   - Suno typically generates 2 tracks per request
   - Each track has its own unique ID
 
+## Docker Deployment Guide
+
+This section covers Docker-specific usage and management.
+
+### Building the Image
+
+```bash
+# Using Docker directly
+docker build -t suno-mcp-server:latest .
+
+# Or using Docker Compose (if installed)
+docker-compose build
+# OR (newer plugin syntax)
+docker compose build
+```
+
+### Running the Container Manually
+
+For testing or standalone use:
+
+```bash
+# Run with environment file
+docker run --rm -i --env-file .env suno-mcp-server:latest
+
+# Or pass environment variables directly
+docker run --rm -i \
+  -e SUNO_API_KEY=your_api_key_here \
+  -e SUNO_API_BASE_URL=https://api.sunoapi.org \
+  suno-mcp-server:latest
+```
+
+### Health Checks
+
+The Docker container includes automatic health monitoring:
+
+```bash
+# Check container health status
+docker ps
+
+# View health check logs
+docker inspect --format='{{json .State.Health}}' suno-mcp-server
+
+# Manual health check
+docker exec suno-mcp-server python healthcheck.py
+```
+
+Health checks verify:
+- Environment variables are properly set
+- Required Python modules are available
+- Suno client can initialize correctly
+
+### Docker Compose Usage
+
+```bash
+# Build the image
+docker-compose build
+
+# Start the server (for testing)
+docker-compose up
+
+# View logs
+docker-compose logs -f
+
+# Stop the server
+docker-compose down
+
+# Rebuild after code changes
+docker-compose build --no-cache
+```
+
+### Security Best Practices
+
+1. **Never commit `.env` to version control** - It contains your API key
+2. **Use `.env` file** - Keeps secrets out of command history and scripts
+3. **Non-root execution** - Container runs as `appuser` (UID 1000)
+4. **Minimal image** - Based on `python:3.12-slim` to reduce attack surface
+5. **Read-only filesystem** - Optional; uncomment in `docker-compose.yml` if needed
+
+### Container Resource Management
+
+The `docker-compose.yml` includes resource limits:
+- CPU limit: 1.0 cores
+- Memory limit: 512MB
+- CPU reservation: 0.5 cores
+- Memory reservation: 256MB
+
+Adjust these in `docker-compose.yml` if needed for your environment.
+
+### Updating the Container
+
+After making code changes:
+
+```bash
+# Rebuild the image
+docker-compose build
+
+# Or rebuild without cache
+docker-compose build --no-cache
+
+# Restart Claude Code to pick up the new image
+```
+
+### Troubleshooting Docker Issues
+
+#### Container fails health check
+```bash
+# Check health check output
+docker logs suno-mcp-server
+
+# Run health check manually
+docker run --rm -i --env-file .env suno-mcp-server:latest python healthcheck.py
+```
+
+#### "Cannot connect to the Docker daemon"
+- Ensure Docker is running: `sudo systemctl start docker`
+- Check Docker permissions: `sudo usermod -aG docker $USER` (then log out/in)
+
+#### Container exits immediately
+- Check logs: `docker logs suno-mcp-server`
+- Verify `.env` file exists and contains valid API key
+- Ensure image built successfully: `docker images | grep suno-mcp-server`
+
+#### Environment variables not loading
+- Verify `.env` file path in docker-compose.yml or docker run command
+- Check file permissions: `ls -la .env`
+- Ensure `.env` file format is correct (no quotes around values)
+
 ## Troubleshooting
 
 ### Common Errors
 
 #### "SUNO_API_KEY must be provided"
-- Ensure your `.env` file exists and contains a valid API key
+- **Docker**: Ensure `.env` file exists and path is correct in MCP configuration
+- **Native**: Ensure your `.env` file exists and contains a valid API key
 - Check that the environment variable is properly set in your MCP configuration
 
 #### "Failed to generate music: 401 Unauthorized"
