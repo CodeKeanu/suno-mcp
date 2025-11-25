@@ -1,6 +1,7 @@
 # Suno MCP Server
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/CodeKeanu/suno-mcp)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ED.svg?logo=docker&logoColor=white)](https://github.com/CodeKeanu/suno-mcp/pkgs/container/suno-mcp)
 [![Python](https://img.shields.io/badge/python-3.10+-green.svg)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-orange.svg)](https://modelcontextprotocol.io/)
 [![Suno API](https://img.shields.io/badge/Suno%20API-v1-purple.svg)](https://docs.sunoapi.org/)
@@ -27,9 +28,33 @@ A Model Context Protocol (MCP) server that provides AI music generation capabili
 
 ## Installation
 
-### Option 1: Docker Installation (Recommended)
+### Option 1: Docker Pull (Easiest - Recommended)
 
-Docker provides a portable, isolated environment for the MCP server with all dependencies pre-configured.
+Pull the pre-built image directly from GitHub Container Registry - no code or build required!
+
+1. Pull the Docker image:
+```bash
+docker pull ghcr.io/codekeanu/suno-mcp:latest
+```
+
+2. Create a `.env` file with your API key:
+```bash
+# Create a directory for your config
+mkdir suno-mcp-config
+cd suno-mcp-config
+
+# Create .env file
+cat > .env << EOF
+SUNO_API_KEY=your_actual_api_key_here
+SUNO_API_BASE_URL=https://api.sunoapi.org
+EOF
+```
+
+That's it! Skip to the [Usage](#usage) section to configure Claude Desktop or Claude Code.
+
+### Option 2: Docker Build from Source
+
+Build the Docker image yourself from source code.
 
 1. Clone this repository:
 ```bash
@@ -55,9 +80,9 @@ docker build -t suno-mcp-server:latest .
 docker-compose build
 ```
 
-That's it! The Docker image is now ready to use.
+**Note:** If you build from source, use `suno-mcp-server:latest` in the configuration examples below instead of `ghcr.io/codekeanu/suno-mcp:latest`.
 
-### Option 2: Native Python Installation
+### Option 3: Native Python Installation
 
 1. Clone this repository:
 ```bash
@@ -94,7 +119,7 @@ Claude Desktop is the official desktop application for Claude that supports MCP 
    - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
    - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-2. Add the Suno MCP server configuration (replace `/absolute/path/to/suno-mcp` with your actual path):
+2. Add the Suno MCP server configuration (replace `/absolute/path/to/.env` with your actual path):
 
 ```json
 {
@@ -106,8 +131,8 @@ Claude Desktop is the official desktop application for Claude that supports MCP 
         "--rm",
         "-i",
         "--env-file",
-        "/absolute/path/to/suno-mcp/.env",
-        "suno-mcp-server:latest"
+        "/absolute/path/to/.env",
+        "ghcr.io/codekeanu/suno-mcp:latest"
       ]
     }
   }
@@ -115,21 +140,46 @@ Claude Desktop is the official desktop application for Claude that supports MCP 
 ```
 
 **Example paths:**
-- macOS: `/Users/yourusername/projects/suno-mcp/.env`
-- Windows: `C:\\Users\\yourusername\\projects\\suno-mcp\\.env`
-- Linux: `/home/yourusername/projects/suno-mcp/.env`
+- macOS: `/Users/yourusername/suno-mcp-config/.env`
+- Windows: `C:\\Users\\yourusername\\suno-mcp-config\\.env`
+- Linux: `/home/yourusername/suno-mcp-config/.env`
 
 **Important Notes:**
 - Use **absolute paths** (full path from root), not relative paths
 - On Windows, use double backslashes (`\\`) or forward slashes (`/`)
 - Ensure Docker Desktop is running before starting Claude Desktop
 - The `.env` file must contain your valid Suno API key
+- The image will be automatically pulled from GitHub Container Registry on first run
 
 3. **Restart Claude Desktop** completely for changes to take effect
 
 4. Test the integration by asking Claude:
    - "Can you check my Suno API credits?"
    - "Generate a short happy instrumental song"
+
+**Alternative: Environment Variables (No .env file needed)**
+
+If you prefer not to use a `.env` file, you can pass the API key directly:
+
+```json
+{
+  "mcpServers": {
+    "suno": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "SUNO_API_KEY=your_actual_api_key_here",
+        "-e",
+        "SUNO_API_BASE_URL=https://api.sunoapi.org",
+        "ghcr.io/codekeanu/suno-mcp:latest"
+      ]
+    }
+  }
+}
+```
 
 #### Native Python Configuration
 
@@ -163,8 +213,8 @@ Claude Code is a CLI tool for software development with Claude.
 3. Add a new server with:
    - **Name**: `suno`
    - **Command**: `docker`
-   - **Arguments**: `["run", "--rm", "-i", "--env-file", "/absolute/path/to/suno-mcp/.env", "suno-mcp-server:latest"]`
-   - Replace `/absolute/path/to/suno-mcp/.env` with your actual path
+   - **Arguments**: `["run", "--rm", "-i", "--env-file", "/absolute/path/to/.env", "ghcr.io/codekeanu/suno-mcp:latest"]`
+   - Replace `/absolute/path/to/.env` with your actual path
 
 **Option 2: Manual Configuration**
 
@@ -180,15 +230,15 @@ Add to your MCP settings file (typically `~/.config/claude-code/mcp_settings.jso
         "--rm",
         "-i",
         "--env-file",
-        "/absolute/path/to/suno-mcp/.env",
-        "suno-mcp-server:latest"
+        "/absolute/path/to/.env",
+        "ghcr.io/codekeanu/suno-mcp:latest"
       ]
     }
   }
 }
 ```
 
-**Important:** Replace `/absolute/path/to/suno-mcp/.env` with the actual path where you cloned the repository.
+**Important:** Replace `/absolute/path/to/.env` with the actual path to your `.env` file.
 
 **Docker Flags Explained:**
 - `--rm`: Automatically remove container when it exits
