@@ -237,3 +237,81 @@ class SunoClient:
             return result
         except httpx.HTTPError as e:
             raise SunoAPIError(f"Failed to get credits: {str(e)}")
+
+    async def convert_to_wav(
+        self,
+        audio_id: str,
+        callback_url: str
+    ) -> Dict[str, Any]:
+        """
+        Convert a generated audio track to WAV format.
+
+        Args:
+            audio_id: Track ID (audioId) of the generated music to convert
+            callback_url: Webhook URL for conversion completion notification
+
+        Returns:
+            Dictionary containing WAV conversion task information with taskId
+
+        Raises:
+            SunoAPIError: If the API request fails
+            ValueError: If required parameters are missing or invalid
+        """
+        if not audio_id:
+            raise ValueError("audio_id is required for WAV conversion")
+        if not callback_url:
+            raise ValueError("callback_url is required for WAV conversion")
+
+        # Build payload with required parameters
+        payload: Dict[str, Any] = {
+            "audioId": audio_id,
+            "callBackUrl": callback_url
+        }
+
+        try:
+            response = await self.client.post("/api/v1/wav/generate", json=payload)
+            response.raise_for_status()
+            result = response.json()
+
+            # Check for API-level errors (Suno returns HTTP 200 with error codes in JSON)
+            if isinstance(result, dict) and result.get("code") != 200:
+                error_msg = result.get("msg", "Unknown error")
+                raise SunoAPIError(f"API Error (code {result.get('code')}): {error_msg}")
+
+            return result
+        except httpx.HTTPError as e:
+            raise SunoAPIError(f"Failed to convert to WAV: {str(e)}")
+
+    async def get_wav_conversion_status(self, task_id: str) -> Dict[str, Any]:
+        """
+        Get status of a WAV conversion task using taskId.
+
+        Args:
+            task_id: Task ID returned from convert_to_wav
+
+        Returns:
+            Dictionary containing WAV conversion status and download information
+
+        Raises:
+            SunoAPIError: If the API request fails
+            ValueError: If task_id is missing
+        """
+        if not task_id:
+            raise ValueError("task_id is required to check WAV conversion status")
+
+        try:
+            response = await self.client.get(
+                "/api/v1/wav/record-info",
+                params={"taskId": task_id}
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            # Check for API-level errors
+            if isinstance(result, dict) and result.get("code") != 200:
+                error_msg = result.get("msg", "Unknown error")
+                raise SunoAPIError(f"API Error (code {result.get('code')}): {error_msg}")
+
+            return result
+        except httpx.HTTPError as e:
+            raise SunoAPIError(f"Failed to get WAV conversion status: {str(e)}")
