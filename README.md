@@ -1,6 +1,7 @@
 # Suno MCP Server
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/CodeKeanu/suno-mcp)
+[![Docker Build](https://github.com/CodeKeanu/suno-mcp/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/CodeKeanu/suno-mcp/actions/workflows/docker-publish.yml)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ED.svg?logo=docker&logoColor=white)](https://github.com/CodeKeanu/suno-mcp/pkgs/container/suno-mcp)
 [![Python](https://img.shields.io/badge/python-3.10+-green.svg)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-orange.svg)](https://modelcontextprotocol.io/)
