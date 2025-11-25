@@ -27,7 +27,7 @@ SUNO_API_BASE_URL=https://api.sunoapi.org
 ## Step 3: Test the Setup (Optional but Recommended)
 
 ```bash
-python test_client.py
+python testing/integration/test_client.py
 ```
 
 This will verify your API key works and test all client functions.

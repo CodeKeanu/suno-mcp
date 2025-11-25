@@ -61,7 +61,7 @@ If you get a credit balance, the MCP server is working!
 ### Full Integration Test
 Run the comprehensive test:
 ```bash
-python /root/suno-mcp-proj/test_mcp_integration.py
+python /root/suno-mcp-proj/testing/integration/test_mcp_integration.py
 ```
 
 Expected output: All 5 tests should pass.
