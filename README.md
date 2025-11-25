@@ -23,7 +23,7 @@ A Model Context Protocol (MCP) server that provides AI music generation capabili
 - **Option 1 (Docker - Recommended)**: Docker and Docker Compose installed
 - **Option 2 (Native Python)**: Python 3.10 or higher
 - A Suno API key (obtain from [sunoapi.org](https://sunoapi.org))
-- Claude Code or another MCP-compatible client
+- An MCP-compatible client: Claude Desktop or Claude Code
 
 ## Installation
 
@@ -31,9 +31,10 @@ A Model Context Protocol (MCP) server that provides AI music generation capabili
 
 Docker provides a portable, isolated environment for the MCP server with all dependencies pre-configured.
 
-1. Clone or navigate to this directory:
+1. Clone this repository:
 ```bash
-cd /root/suno-mcp-proj
+git clone https://github.com/CodeKeanu/suno-mcp.git
+cd suno-mcp
 ```
 
 2. Configure your API key:
@@ -49,6 +50,8 @@ SUNO_API_BASE_URL=https://api.sunoapi.org
 
 4. Build the Docker image:
 ```bash
+docker build -t suno-mcp-server:latest .
+# Or use docker-compose:
 docker-compose build
 ```
 
@@ -56,9 +59,10 @@ That's it! The Docker image is now ready to use.
 
 ### Option 2: Native Python Installation
 
-1. Clone or navigate to this directory:
+1. Clone this repository:
 ```bash
-cd /root/suno-mcp-proj
+git clone https://github.com/CodeKeanu/suno-mcp.git
+cd suno-mcp
 ```
 
 2. Install dependencies:
@@ -77,22 +81,92 @@ SUNO_API_KEY=your_actual_api_key_here
 SUNO_API_BASE_URL=https://api.sunoapi.org
 ```
 
-## Usage with Claude Code
+## Usage
 
-To use this MCP server with Claude Code, add it to your MCP settings configuration.
+### Usage with Claude Desktop
 
-### Docker Configuration (Recommended)
+Claude Desktop is the official desktop application for Claude that supports MCP servers.
 
-#### Option 1: Using Claude Code Settings UI
+#### Docker Configuration (Recommended)
+
+1. Locate your Claude Desktop configuration file:
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+2. Add the Suno MCP server configuration (replace `/absolute/path/to/suno-mcp` with your actual path):
+
+```json
+{
+  "mcpServers": {
+    "suno": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--env-file",
+        "/absolute/path/to/suno-mcp/.env",
+        "suno-mcp-server:latest"
+      ]
+    }
+  }
+}
+```
+
+**Example paths:**
+- macOS: `/Users/yourusername/projects/suno-mcp/.env`
+- Windows: `C:\\Users\\yourusername\\projects\\suno-mcp\\.env`
+- Linux: `/home/yourusername/projects/suno-mcp/.env`
+
+**Important Notes:**
+- Use **absolute paths** (full path from root), not relative paths
+- On Windows, use double backslashes (`\\`) or forward slashes (`/`)
+- Ensure Docker Desktop is running before starting Claude Desktop
+- The `.env` file must contain your valid Suno API key
+
+3. **Restart Claude Desktop** completely for changes to take effect
+
+4. Test the integration by asking Claude:
+   - "Can you check my Suno API credits?"
+   - "Generate a short happy instrumental song"
+
+#### Native Python Configuration
+
+For native Python (without Docker):
+
+```json
+{
+  "mcpServers": {
+    "suno": {
+      "command": "python",
+      "args": ["/absolute/path/to/suno-mcp/server.py"],
+      "env": {
+        "SUNO_API_KEY": "your_actual_api_key_here",
+        "SUNO_API_BASE_URL": "https://api.sunoapi.org"
+      }
+    }
+  }
+}
+```
+
+### Usage with Claude Code
+
+Claude Code is a CLI tool for software development with Claude.
+
+#### Docker Configuration (Recommended)
+
+**Option 1: Using Claude Code Settings UI**
 
 1. Open Claude Code settings
 2. Navigate to MCP Servers section
 3. Add a new server with:
    - **Name**: `suno`
    - **Command**: `docker`
-   - **Arguments**: `["run", "--rm", "-i", "--env-file", "/root/suno-mcp-proj/.env", "suno-mcp-server:latest"]`
+   - **Arguments**: `["run", "--rm", "-i", "--env-file", "/absolute/path/to/suno-mcp/.env", "suno-mcp-server:latest"]`
+   - Replace `/absolute/path/to/suno-mcp/.env` with your actual path
 
-#### Option 2: Manual Configuration
+**Option 2: Manual Configuration**
 
 Add to your MCP settings file (typically `~/.config/claude-code/mcp_settings.json`):
 
@@ -106,7 +180,7 @@ Add to your MCP settings file (typically `~/.config/claude-code/mcp_settings.jso
         "--rm",
         "-i",
         "--env-file",
-        "/root/suno-mcp-proj/.env",
+        "/absolute/path/to/suno-mcp/.env",
         "suno-mcp-server:latest"
       ]
     }
@@ -114,26 +188,28 @@ Add to your MCP settings file (typically `~/.config/claude-code/mcp_settings.jso
 }
 ```
 
+**Important:** Replace `/absolute/path/to/suno-mcp/.env` with the actual path where you cloned the repository.
+
 **Docker Flags Explained:**
 - `--rm`: Automatically remove container when it exits
 - `-i`: Keep stdin open for MCP stdio communication
 - `--env-file`: Load environment variables from `.env` file (keeps API key secure)
 
-### Native Python Configuration
+#### Native Python Configuration
 
-#### Option 1: Using Claude Code Settings UI
+**Option 1: Using Claude Code Settings UI**
 
 1. Open Claude Code settings
 2. Navigate to MCP Servers section
 3. Add a new server with:
    - **Name**: `suno`
    - **Command**: `python`
-   - **Arguments**: `["/root/suno-mcp-proj/server.py"]`
+   - **Arguments**: `["/absolute/path/to/suno-mcp/server.py"]`
    - **Environment Variables**:
      - `SUNO_API_KEY`: Your API key
      - `SUNO_API_BASE_URL`: `https://api.sunoapi.org`
 
-#### Option 2: Manual Configuration
+**Option 2: Manual Configuration**
 
 Add to your MCP settings file:
 
@@ -142,7 +218,7 @@ Add to your MCP settings file:
   "mcpServers": {
     "suno": {
       "command": "python",
-      "args": ["/root/suno-mcp-proj/server.py"],
+      "args": ["/absolute/path/to/suno-mcp/server.py"],
       "env": {
         "SUNO_API_KEY": "your_actual_api_key_here",
         "SUNO_API_BASE_URL": "https://api.sunoapi.org"
@@ -152,7 +228,9 @@ Add to your MCP settings file:
 }
 ```
 
-**Important:** Restart Claude Code after adding the configuration.
+**Important:**
+- Replace `/absolute/path/to/suno-mcp/server.py` with your actual path
+- Restart Claude Code after adding the configuration
 
 ## Available Tools
 
@@ -433,9 +511,14 @@ docker run --rm -i --env-file .env suno-mcp-server:latest python healthcheck.py
 ### Common Errors
 
 #### "SUNO_API_KEY must be provided"
-- **Docker**: Ensure `.env` file exists and path is correct in MCP configuration
-- **Native**: Ensure your `.env` file exists and contains a valid API key
-- Check that the environment variable is properly set in your MCP configuration
+- **Docker**:
+  - Ensure `.env` file exists in your project directory
+  - Verify the absolute path to `.env` in your MCP configuration is correct
+  - Check that the `.env` file contains: `SUNO_API_KEY=your_actual_key`
+  - Make sure Docker can access the file (permissions)
+- **Native**:
+  - Ensure your `.env` file exists and contains a valid API key
+  - Or verify the `SUNO_API_KEY` is set in the `env` section of your MCP configuration
 
 #### "Failed to generate music: 401 Unauthorized"
 - Verify your API key is correct and active
