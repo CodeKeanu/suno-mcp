@@ -10,6 +10,8 @@
 
 A Model Context Protocol (MCP) server that provides AI music generation capabilities using the Suno API. This server allows Claude and other MCP clients to generate music, retrieve track information, and manage API credits through a simple tool interface.
 
+**✨ Features automatic Docker builds via GitHub Actions - always get the latest version with `docker pull`!**
+
 ## Features
 
 - **Generate Music**: Create AI-generated music from text prompts with customizable parameters
