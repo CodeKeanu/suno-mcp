@@ -461,24 +461,34 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[TextConten
                 data = result["data"]
 
                 response_text += f"Task ID: {data.get('taskId', 'N/A')}\n"
-                response_text += f"Status: {data.get('status', 'N/A')}\n"
-                response_text += f"Operation: {data.get('operationType', 'N/A')}\n"
+                response_text += f"Music ID: {data.get('musicId', 'N/A')}\n"
+                response_text += f"Status: {data.get('successFlag', 'N/A')}\n"
 
-                # Check if response contains WAV data
+                # Check if conversion is complete and has WAV URL
                 response_data = data.get('response')
                 if response_data and isinstance(response_data, dict):
-                    wav_data = response_data.get('wavData')
-                    if wav_data:
-                        response_text += "\nWAV File Information:\n"
-                        response_text += f"  Audio ID: {wav_data.get('audioId', 'N/A')}\n"
-                        response_text += f"  WAV URL: {wav_data.get('wavUrl', 'N/A')}\n"
+                    wav_url = response_data.get('audioWavUrl')
+                    if wav_url:
+                        response_text += "\n✅ WAV Conversion Complete!\n"
+                        response_text += f"WAV Download URL: {wav_url}\n"
 
-                        if wav_data.get('createTime'):
-                            response_text += f"  Created: {wav_data['createTime']}\n"
+                        if data.get('completeTime'):
+                            response_text += f"Completed: {data['completeTime']}\n"
+                        if data.get('createTime'):
+                            response_text += f"Created: {data['createTime']}\n"
                     else:
-                        response_text += f"\nConversion in progress. Current status: {data.get('status', 'UNKNOWN')}\n"
+                        # Conversion still in progress
+                        response_text += f"\n⏳ Conversion in progress...\n"
+                        response_text += f"Current Status: {data.get('successFlag', 'PENDING')}\n"
                 else:
-                    response_text += f"\nConversion in progress. Current status: {data.get('status', 'UNKNOWN')}\n"
+                    response_text += f"\n⏳ Conversion in progress...\n"
+                    response_text += f"Current Status: {data.get('successFlag', 'PENDING')}\n"
+
+                # Show errors if any
+                if data.get('errorCode') or data.get('errorMessage'):
+                    response_text += f"\n⚠️ Error Details:\n"
+                    response_text += f"Error Code: {data.get('errorCode', 'N/A')}\n"
+                    response_text += f"Error Message: {data.get('errorMessage', 'N/A')}\n"
             else:
                 response_text += f"Response: {result}\n"
 
