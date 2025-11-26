@@ -15,6 +15,7 @@ A Model Context Protocol (MCP) server that provides AI music generation capabili
 ## Features
 
 - **Generate Music**: Create AI-generated music from text prompts with customizable parameters
+- **WAV Conversion**: Convert generated MP3 tracks to high-quality WAV format
 - **Track Status Monitoring**: Check generation progress and retrieve completed track information using task IDs
 - **Track Information**: Retrieve detailed information about generated tracks including status, URLs, and metadata using track IDs
 - **Credit Management**: Check API credit balance and usage statistics
@@ -287,7 +288,7 @@ Add to your MCP settings file:
 
 ## Available Tools
 
-The server exposes 4 MCP tools for music generation and management:
+The server exposes 6 MCP tools for music generation and management:
 
 ### 1. generate_music
 
@@ -383,6 +384,48 @@ Check your Suno API account credit balance.
 **Example:**
 ```
 Check my Suno API credits
+```
+
+### 5. convert_to_wav
+
+Convert a generated MP3 track to high-quality WAV format. Requires both the generation task ID and the specific track ID.
+
+**Parameters:**
+- `callback_url` (required): Webhook URL for conversion completion notification (e.g., "https://example.com/webhook")
+- `task_id` (required): Generation task ID from `music['data']['taskId']` - the hex string identifying the generation job
+- `audio_id` (required): Track ID from `music['data']['sunoData'][0]['id']` - the UUID identifying the specific track to convert
+
+**Returns:**
+- Conversion task ID for tracking the WAV conversion progress
+
+**Example:**
+```
+After generating music:
+1. Extract task_id: music['data']['taskId'] → "aba5fa3d96712ea43da686e20849e304"
+2. Extract audio_id: music['data']['sunoData'][0]['id'] → "8116fdcd-16e3-4c5d-9bae-3ed523ab5c4e"
+3. Convert: convert_to_wav with both IDs and callback URL
+```
+
+**Important Notes:**
+- **BOTH IDs are required** - The Suno API needs both the generation job ID (task_id) and the specific track ID (audio_id)
+- Use the conversion task ID returned to check progress with `get_wav_conversion_status`
+- Ensure the track generation is complete (use `wait_audio=true` or check status first)
+
+### 6. get_wav_conversion_status
+
+Get the status of a WAV conversion task and retrieve the download URL once complete.
+
+**Parameters:**
+- `task_id` (required): The conversion task ID returned from `convert_to_wav`
+
+**Returns:**
+- Conversion task status
+- WAV download URL when conversion is complete
+- Track information and creation time
+
+**Example:**
+```
+Check WAV conversion status for task: 4c7c38f9529e2ae2c159a56fc6a4b9e6
 ```
 
 ## Example Workflows
