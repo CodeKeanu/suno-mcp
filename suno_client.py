@@ -338,9 +338,23 @@ class SunoClient:
             result = response.json()
 
             # Check for API-level errors (Suno returns HTTP 200 with error codes in JSON)
-            if isinstance(result, dict) and result.get("code") != 200:
-                error_msg = result.get("msg", "Unknown error")
-                raise SunoAPIError(f"API Error (code {result.get('code')}): {error_msg}")
+            if isinstance(result, dict):
+                code = result.get("code")
+
+                # 409 = WAV already exists - this is informational, not an error
+                if code == 409:
+                    # WAV already exists - provide helpful message with the original conversion task ID
+                    # Note: We don't have the original conversion task ID, so user needs to retrieve it
+                    raise SunoAPIError(
+                        f"WAV conversion already exists for this track (code 409). "
+                        f"The track audio_id '{audio_id}' has already been converted to WAV. "
+                        f"To retrieve the WAV download URL, you need the original conversion task_id. "
+                        f"If you don't have it, you may need to track conversion task IDs when creating conversions. "
+                        f"Note: The Suno API does not provide a way to query WAV status by audio_id alone."
+                    )
+                elif code != 200:
+                    error_msg = result.get("msg", "Unknown error")
+                    raise SunoAPIError(f"API Error (code {code}): {error_msg}")
 
             return result
         except httpx.HTTPError as e:

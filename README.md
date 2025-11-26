@@ -396,37 +396,63 @@ Convert a generated MP3 track to high-quality WAV format. Requires both the gene
 - `audio_id` (required): Track ID from `music['data']['sunoData'][0]['id']` - the UUID identifying the specific track to convert
 
 **Returns:**
-- Conversion task ID for tracking the WAV conversion progress
+- **CONVERSION task ID** (different from generation task_id!) for tracking the WAV conversion progress
 
-**Example:**
+**Example Workflow:**
 ```
-After generating music:
-1. Extract task_id: music['data']['taskId'] → "aba5fa3d96712ea43da686e20849e304"
-2. Extract audio_id: music['data']['sunoData'][0]['id'] → "8116fdcd-16e3-4c5d-9bae-3ed523ab5c4e"
-3. Convert: convert_to_wav with both IDs and callback URL
+# Step 1: Generate music
+music = generate_music(prompt="Epic soundtrack", wait_audio=True)
+generation_task_id = music['data']['taskId']        # "aba5fa3d..." (for music generation)
+track_id = music['data']['sunoData'][0]['id']       # "8116fdcd..." (specific track)
+
+# Step 2: Convert to WAV
+conversion = convert_to_wav(
+    callback_url="https://example.com/webhook",
+    task_id=generation_task_id,  # Use generation task_id here
+    audio_id=track_id             # Use track ID here
+)
+conversion_task_id = conversion['data']['taskId']   # "4c7c38f9..." (NEW ID for WAV conversion!)
+
+# Step 3: Get WAV download URL
+status = get_wav_conversion_status(task_id=conversion_task_id)  # Use CONVERSION task_id!
+wav_url = status['data']['response']['audioWavUrl']
 ```
 
-**Important Notes:**
-- **BOTH IDs are required** - The Suno API needs both the generation job ID (task_id) and the specific track ID (audio_id)
-- Use the conversion task ID returned to check progress with `get_wav_conversion_status`
-- Ensure the track generation is complete (use `wait_audio=true` or check status first)
+**🔴 CRITICAL WARNINGS:**
+- **THREE DIFFERENT IDs** - Generation task_id, track audio_id, and conversion task_id are ALL different!
+- **MUST SAVE CONVERSION TASK ID** - The returned conversion task_id is the ONLY way to get the WAV download URL
+- **NO ALTERNATIVE RETRIEVAL** - You CANNOT query WAV status by audio_id or generation task_id
+- **IF LOST, WAV IS UNRECOVERABLE** - Losing the conversion task_id means you cannot retrieve the WAV URL
+- **409 Conflict** - If you get "WAV record already exists", you need the ORIGINAL conversion task_id (not generation task_id)
+
+**Requirements:**
+- BOTH IDs required (generation task_id + track audio_id)
+- Track generation must be complete (use `wait_audio=true`)
 
 ### 6. get_wav_conversion_status
 
 Get the status of a WAV conversion task and retrieve the download URL once complete.
 
 **Parameters:**
-- `task_id` (required): The conversion task ID returned from `convert_to_wav`
+- `task_id` (required): The **CONVERSION task ID** returned from `convert_to_wav` (NOT the generation task_id!)
 
 **Returns:**
-- Conversion task status
+- Conversion task status (SUCCESS, PENDING, etc.)
 - WAV download URL when conversion is complete
 - Track information and creation time
 
 **Example:**
 ```
-Check WAV conversion status for task: 4c7c38f9529e2ae2c159a56fc6a4b9e6
+# Use the CONVERSION task_id (from convert_to_wav response)
+# NOT the generation task_id (from generate_music response)
+status = get_wav_conversion_status(task_id="4c7c38f9529e2ae2c159a56fc6a4b9e6")
+wav_url = status['data']['response']['audioWavUrl']
 ```
+
+**⚠️ IMPORTANT:**
+- Use the **conversion task_id** (returned from `convert_to_wav`)
+- Do NOT use the generation task_id (from `generate_music`) - it will not work
+- Do NOT use the audio_id - the API does not support querying by audio_id
 
 ## Example Workflows
 

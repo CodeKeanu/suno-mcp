@@ -150,7 +150,7 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="convert_to_wav",
-            description="Convert a generated audio track to WAV format. Requires BOTH task_id (generation job ID) AND audio_id (specific track ID). The task_id identifies the generation job, and audio_id specifies which track to convert. Returns a conversion task ID that can be used to check conversion status.",
+            description="Convert a generated MP3 track to high-quality WAV format. Requires BOTH task_id (generation job ID) AND audio_id (specific track ID). CRITICAL FOR AI: Returns a NEW conversion task_id (different from generation task_id) which you MUST save and provide to the user. This conversion task_id is the ONLY way to retrieve the WAV download URL later. The API does NOT support querying by audio_id alone. If the conversion task_id is lost, the WAV URL is permanently unrecoverable.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -172,7 +172,7 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_wav_conversion_status",
-            description="Get the status of a WAV conversion task using the taskId returned from convert_to_wav. Shows conversion progress and WAV download URL once complete.",
+            description="Get the status of a WAV conversion task and retrieve the WAV download URL. CRITICAL: You must use the CONVERSION task_id returned from convert_to_wav (NOT the generation task_id from generate_music). These are two different task IDs. The conversion task_id is the ONLY way to retrieve the WAV download URL - there is no other method to query by audio_id or generation task_id.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -435,9 +435,24 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[TextConten
 
                 # Check if data contains taskId
                 if isinstance(data, dict) and "taskId" in data:
-                    response_text += f"Task ID: {data['taskId']}\n"
-                    response_text += f"Audio ID: {audio_id}\n"
-                    response_text += "\nNote: Conversion is processing. Use get_wav_conversion_status with the task ID to check progress and retrieve the WAV download URL.\n"
+                    conversion_task_id = data['taskId']
+                    response_text += f"🎵 WAV Conversion Initiated\n\n"
+                    response_text += f"=" * 60 + "\n"
+                    response_text += f"⚠️  CRITICAL: SAVE THIS CONVERSION TASK ID  ⚠️\n"
+                    response_text += f"=" * 60 + "\n\n"
+                    response_text += f"Conversion Task ID: {conversion_task_id}\n\n"
+                    response_text += f"This is a DIFFERENT ID from the generation task_id!\n"
+                    response_text += f"Original Generation Task ID: {task_id}\n"
+                    response_text += f"Track Audio ID: {audio_id}\n\n"
+                    response_text += f"🔴 WITHOUT THIS CONVERSION TASK ID, YOU CANNOT:\n"
+                    response_text += f"   - Retrieve the WAV download URL\n"
+                    response_text += f"   - Check conversion status\n"
+                    response_text += f"   - Access the converted file\n\n"
+                    response_text += f"✅ TO GET THE WAV DOWNLOAD URL:\n"
+                    response_text += f"   Use: get_wav_conversion_status(task_id=\"{conversion_task_id}\")\n\n"
+                    response_text += f"⚠️  The Suno API has NO other way to retrieve the WAV URL.\n"
+                    response_text += f"   You CANNOT query by audio_id or generation task_id.\n"
+                    response_text += f"   If you lose this conversion task_id, the WAV is unrecoverable.\n"
                 else:
                     response_text += f"Data: {data}\n"
             else:
