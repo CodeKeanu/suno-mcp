@@ -243,48 +243,50 @@ class SunoClient:
     async def convert_to_wav(
         self,
         callback_url: str,
-        task_id: str = None,
-        audio_id: str = None
+        task_id: str,
+        audio_id: str
     ) -> Dict[str, Any]:
         """
         Convert a generated audio track to WAV format.
 
-        Per Suno API docs: You can provide EITHER taskId OR audioId to identify the source track.
-        Providing audioId ensures the exact track is converted (recommended when a task has multiple tracks).
+        Per Suno API docs: BOTH taskId AND audioId are REQUIRED parameters.
+        The audioId specifies which exact track to convert (tasks can have multiple tracks).
 
         Args:
             callback_url: Webhook URL for conversion completion notification (required)
-            task_id: Original generation task ID (taskId) from generate_music (optional)
-            audio_id: Track ID (audioId) of the specific track to convert (optional)
+            task_id: Original generation task ID (taskId) from generate_music (required)
+            audio_id: Track ID (audioId) of the specific track to convert (required)
 
         Returns:
             Dictionary containing WAV conversion task information with taskId
 
         Raises:
             SunoAPIError: If the API request fails
-            ValueError: If neither task_id nor audio_id is provided, or if callback_url is missing
+            ValueError: If required parameters are missing or invalid
 
         Example:
-            # Option 1: Convert using audio_id (recommended - more precise)
+            # Generate music and wait for completion
             music = await client.generate_music(prompt="Epic soundtrack", wait_audio=True)
-            track_id = music['data']['sunoData'][0]['id']
-            conversion = await client.convert_to_wav(
-                callback_url="https://example.com/webhook",
-                audio_id=track_id
-            )
 
-            # Option 2: Convert using task_id (converts all tracks from that generation)
-            generation_task_id = music['data']['taskId']
+            # Extract BOTH IDs (both required for WAV conversion)
+            gen_task_id = music['data']['taskId']           # Generation job ID
+            track_id = music['data']['sunoData'][0]['id']   # Specific track ID
+
+            # Convert to WAV (requires both IDs)
             conversion = await client.convert_to_wav(
                 callback_url="https://example.com/webhook",
-                task_id=generation_task_id
+                task_id=gen_task_id,
+                audio_id=track_id
             )
         """
         if not callback_url:
             raise ValueError("callback_url is required for WAV conversion")
 
-        if not task_id and not audio_id:
-            raise ValueError("Either task_id or audio_id must be provided for WAV conversion")
+        if not task_id:
+            raise ValueError("task_id is required for WAV conversion (generation job ID)")
+
+        if not audio_id:
+            raise ValueError("audio_id is required for WAV conversion (specific track ID)")
 
         # Validate callback_url format
         if callback_url:
@@ -313,26 +315,22 @@ class SunoClient:
                 )
 
         # Validate task_id format (should be hex string without dashes, or could have dashes)
-        if task_id:
-            # Task IDs are typically hex strings (with or without dashes)
-            # If user accidentally passes a UUID here, warn them
-            uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
-            if uuid_pattern.match(task_id):
-                raise ValueError(
-                    f"Possible parameter error: task_id '{task_id}' looks like a UUID (track ID). "
-                    f"If this is a track ID, use the audio_id parameter instead: "
-                    f"convert_to_wav(callback_url=..., audio_id='{task_id}')"
-                )
+        # Task IDs are typically hex strings (with or without dashes)
+        # If user accidentally passes a UUID here, warn them
+        uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+        if uuid_pattern.match(task_id):
+            raise ValueError(
+                f"Possible parameter error: task_id '{task_id}' looks like a UUID (track ID). "
+                f"task_id should be the generation job ID (hex string), not a track UUID. "
+                f"Check that you're using task_id from music['data']['taskId'], not from sunoData[]['id']"
+            )
 
-        # Build payload - include whichever ID was provided
+        # Build payload - BOTH IDs are required per API documentation
         payload: Dict[str, Any] = {
-            "callBackUrl": callback_url
+            "callBackUrl": callback_url,
+            "taskId": task_id,
+            "audioId": audio_id
         }
-
-        if task_id:
-            payload["taskId"] = task_id
-        if audio_id:
-            payload["audioId"] = audio_id
 
         try:
             response = await self.client.post("/api/v1/wav/generate", json=payload)

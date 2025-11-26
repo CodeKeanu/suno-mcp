@@ -150,7 +150,7 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="convert_to_wav",
-            description="Convert a generated audio track to WAV format. Provide EITHER task_id OR audio_id (or both). Using audio_id is recommended for precision when a generation task has multiple tracks. Returns a conversion task ID that can be used to check conversion status.",
+            description="Convert a generated audio track to WAV format. Requires BOTH task_id (generation job ID) AND audio_id (specific track ID). The task_id identifies the generation job, and audio_id specifies which track to convert. Returns a conversion task ID that can be used to check conversion status.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -160,14 +160,14 @@ async def handle_list_tools() -> list[Tool]:
                     },
                     "task_id": {
                         "type": "string",
-                        "description": "Original generation task ID (taskId) from generate_music - converts all tracks from that generation (optional if audio_id provided)"
+                        "description": "Generation task ID (taskId) from music['data']['taskId'] - the hex string identifying the generation job (REQUIRED)"
                     },
                     "audio_id": {
                         "type": "string",
-                        "description": "Track ID (audioId) of the specific generated music track to convert - more precise, recommended (optional if task_id provided)"
+                        "description": "Track ID (audioId) from music['data']['sunoData'][0]['id'] - UUID identifying the specific track to convert (REQUIRED)"
                     }
                 },
-                "required": ["callback_url"]
+                "required": ["callback_url", "task_id", "audio_id"]
             }
         ),
         Tool(
@@ -414,10 +414,13 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[TextConten
             if not callback_url:
                 raise ValueError("callback_url is required")
 
-            if not task_id and not audio_id:
-                raise ValueError("Either task_id or audio_id must be provided")
+            if not task_id:
+                raise ValueError("task_id is required (generation job ID from music['data']['taskId'])")
 
-            # Convert to WAV (pass whichever IDs were provided)
+            if not audio_id:
+                raise ValueError("audio_id is required (track ID from music['data']['sunoData'][0]['id'])")
+
+            # Convert to WAV (BOTH IDs required per Suno API)
             result = await suno_client.convert_to_wav(
                 callback_url=callback_url,
                 task_id=task_id,

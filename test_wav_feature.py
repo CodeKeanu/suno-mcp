@@ -155,16 +155,21 @@ def test_error_handling():
         client = SunoClient()
 
         try:
-            # Test convert_to_wav validation (callback_url required, at least one ID required)
+            # Test convert_to_wav validation (all three params required)
             try:
-                await client.convert_to_wav("", task_id="test_id")
+                await client.convert_to_wav("", "test_task_id", "7752c889-3601-4e55-b805-54a28a53de85")
             except ValueError as e:
                 print(f"  ✓ convert_to_wav validates callback_url: {str(e)}")
 
             try:
-                await client.convert_to_wav("https://example.com/webhook")
+                await client.convert_to_wav("https://example.com/webhook", "", "7752c889-3601-4e55-b805-54a28a53de85")
             except ValueError as e:
-                print(f"  ✓ convert_to_wav validates either task_id or audio_id required: {str(e)}")
+                print(f"  ✓ convert_to_wav validates task_id required: {str(e)}")
+
+            try:
+                await client.convert_to_wav("https://example.com/webhook", "test_task_id", "")
+            except ValueError as e:
+                print(f"  ✓ convert_to_wav validates audio_id required: {str(e)}")
 
             # Test get_wav_conversion_status validation
             try:
