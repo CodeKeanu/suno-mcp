@@ -47,7 +47,7 @@ def test_method_signatures():
     # Test convert_to_wav signature
     sig = inspect.signature(SunoClient.convert_to_wav)
     params = list(sig.parameters.keys())
-    expected_params = ['self', 'audio_id', 'callback_url']
+    expected_params = ['self', 'callback_url', 'task_id', 'audio_id']
 
     if params == expected_params:
         print(f"  ✓ convert_to_wav signature correct: {params}")
@@ -155,16 +155,16 @@ def test_error_handling():
         client = SunoClient()
 
         try:
-            # Test convert_to_wav validation
+            # Test convert_to_wav validation (callback_url required, at least one ID required)
             try:
-                await client.convert_to_wav("", "")
-            except ValueError as e:
-                print(f"  ✓ convert_to_wav validates audio_id: {str(e)}")
-
-            try:
-                await client.convert_to_wav("test_id", "")
+                await client.convert_to_wav("", task_id="test_id")
             except ValueError as e:
                 print(f"  ✓ convert_to_wav validates callback_url: {str(e)}")
+
+            try:
+                await client.convert_to_wav("https://example.com/webhook")
+            except ValueError as e:
+                print(f"  ✓ convert_to_wav validates either task_id or audio_id required: {str(e)}")
 
             # Test get_wav_conversion_status validation
             try:

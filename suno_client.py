@@ -3,6 +3,8 @@
 import httpx
 from typing import Optional, Dict, Any, List
 import os
+import re
+from urllib.parse import urlparse
 
 
 class SunoAPIError(Exception):
@@ -283,6 +285,44 @@ class SunoClient:
 
         if not task_id and not audio_id:
             raise ValueError("Either task_id or audio_id must be provided for WAV conversion")
+
+        # Validate callback_url format
+        if callback_url:
+            parsed = urlparse(callback_url)
+            if not parsed.scheme or not parsed.netloc:
+                raise ValueError(
+                    f"Invalid callback_url format: '{callback_url}'. "
+                    "Must be a valid URL like 'https://example.com/webhook'"
+                )
+            if parsed.scheme not in ['http', 'https']:
+                raise ValueError(
+                    f"Invalid callback_url scheme: '{parsed.scheme}'. "
+                    "Must use http:// or https://"
+                )
+
+        # Validate audio_id format (should be UUID)
+        if audio_id:
+            # UUID format: 8-4-4-4-12 hex characters
+            uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+            if not uuid_pattern.match(audio_id):
+                raise ValueError(
+                    f"Invalid audio_id format: '{audio_id}'. "
+                    f"Expected UUID format like '7752c889-3601-4e55-b805-54a28a53de85'. "
+                    f"This is the track's 'id' field from sunoData array, NOT the generation taskId. "
+                    f"If you have a taskId (hex string without dashes), use the task_id parameter instead."
+                )
+
+        # Validate task_id format (should be hex string without dashes, or could have dashes)
+        if task_id:
+            # Task IDs are typically hex strings (with or without dashes)
+            # If user accidentally passes a UUID here, warn them
+            uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+            if uuid_pattern.match(task_id):
+                raise ValueError(
+                    f"Possible parameter error: task_id '{task_id}' looks like a UUID (track ID). "
+                    f"If this is a track ID, use the audio_id parameter instead: "
+                    f"convert_to_wav(callback_url=..., audio_id='{task_id}')"
+                )
 
         # Build payload - include whichever ID was provided
         payload: Dict[str, Any] = {
